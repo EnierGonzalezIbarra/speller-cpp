@@ -4,7 +4,8 @@
 #include <functional>
 #include <iostream>
 #include <fstream>
-#include <algorithm>
+#include <array>
+// #include <algorithm>
 
 // Default dictionary
 #define DICTIONARY "dictionaries/large"
@@ -18,131 +19,131 @@
 using namespace std;
 
 // Represents a node in a hash table
-class node {
+class List_Node {
     public:
     string word;
-    node* next;
+    List_Node* next;
 
+    List_Node(string _word): word(_word) {
+         next = nullptr;
+    }
+    ~List_Node(void) {
+        if (next != nullptr) {
+            delete next;
+        }
+    }
+    
+    bool search(string _word_lower)
+    {
+        string lower_word = word;
+        string lower_target = _word_lower;
+
+        std::transform(lower_word.begin(), lower_word.end(), lower_word.begin(), ::tolower);
+        
+        // cout << endl;
+        // cout << "Comparing: " << lower_word << " & " << lower_target << "\n";
+        // cout << "From: " << word << " & " << _word << "\n";
+
+        if (lower_word == lower_target)
+        {
+            // cout << "Matched. Now returning true\n";
+            return true;
+        } else if (next == nullptr) {
+            // cout << "Any matched. Now returning false\n";
+            return false;
+        } else {
+            // cout << "Not matched. Now looking forward\n";
+            return next->search(_word_lower);
+        }
+    }
+
+    void add(List_Node* new_node)
+    {
+        if (next == nullptr) {
+            next = new_node;
+        } else {
+            new_node->next = next;    
+            next = new_node;
+        }
+    }
 };
 
 // Represents the hash table itself 
-class hash_table {
+class Hash_Table {
     private:
-        node *table[N];
+        array<List_Node*, N> table;
         unsigned int word_count = 0;
     public:
+
+
+    // Loads dictionary into memory, returning true if successful, else false
+    Hash_Table(string dictionary)
+    {
+        table.fill(nullptr);
+        // Open the dictionary file
+        ifstream dict_file(DICTIONARY, std::ios::in);
+
+        if (!dict_file.is_open()) 
+        {
+            std::cout << "Unable to open dictionary file";
+        } else {
+            cout << "Dictionary file is open\n";
+        }
+        string word = "";
+
+        // Read a word at a time from dictionary file until you reach EOF
+        while (dict_file.peek() != EOF)
+        {
+            getline(dict_file, word);
+
+            // Look for the right place for the word using the hash() function
+            int place = hash_function(word);
+
+
+            // Add the word to the hash table directly if place is empty
+            if (table[place] == nullptr)
+            {
+                table[place] = new List_Node(word);
+            }
+            // Solve collision if it is not empty
+            else
+            {
+                List_Node* new_node = new List_Node(word);
+                table[place]->add(new_node);
+            }
+            // At this point there is another word
+            word_count++;
+        }
+        cout << "Closing dictfile\n";
+        dict_file.close();
+    }
+
+    ~Hash_Table(void)
+    {
+        // For every bucket in the hash table
+        for (int i = 0; i < N; i++)
+        {
+            // Signal to free first node. It's destructor will take care of the rest
+            delete table[i];
+        }
+    }
 
     // Returns true if word is in dictionary, else false
     bool check(const string word)
     {
         // Use a recursive helper function to iterate the corresponding linked list and find a word
-        return find_word(table[hash_function(word)], word);
-    }
-
-    // Loads dictionary into memory, returning true if successful, else false
-    bool load_dict(string dictionary)
-    {
-        // Open the dictionary file
-        ifstream dict_file("./dictionaries/large", std::ios::in);
-
-        if (!dict_file.is_open()) 
-        {
-            std::cout << "Unable to open dictionary file";
+        string lower_target = word;
+        std::transform(lower_target.begin(), lower_target.end(), lower_target.begin(), ::tolower);
+        int place = hash_function(lower_target);
+        // cout << place << "\n";
+        if (table[place] != nullptr) {
+            return table[place]->search(lower_target);
+        } else {
             return false;
         }
-        string word = "";
-
-        // Read a word at a time from dictionary file until you reach EOF
-        while (getline(dict_file, word))
-        {
-            node *new_node = new node;
-            if (new_node == NULL)
-            {
-                std::cout << "Memory error while loading dict\n";
-                dict_file.close();
-                return false;
-            }
-
-            new_node->word = word;
-            new_node->next = NULL;
-
-            // Look for the right place for the word using the hash() function
-            int place = hash_function(new_node->word);
-
-            // Add the word to the hash table directly if place is empty
-            if (table[place] == NULL)
-            {
-                table[place] = new_node;
-            }
-            // Solve collision if it is not empty
-            else
-            {
-                add(&(table[place]), &new_node);
-            }
-            // At this point there is another word
-            word_count++;
-        }
-        dict_file.close();
-        return true;
     }
 
-    // Looks for a word in a bucket
-    bool find_word(node *head_ptr, const string word)
-    {
-        node *ptr = head_ptr;
-        while (ptr != NULL)
-        {
-            node *next = ptr->next;
-            string lower_head_ptr = ptr->word;
-            string lower_word = word;
-
-            std::transform(lower_head_ptr.begin(), lower_head_ptr.end(), lower_head_ptr.begin(), ::tolower);
-            std::transform(lower_word.begin(), lower_word.end(), lower_word.begin(), ::tolower);
-            
-            if (lower_head_ptr == lower_word)
-            {
-                return true;
-            }
-            ptr = next;
-        }
-        return false;
-    }
-
-    // Unloads dictionary from memory, returning true if successful, else false
-    bool unload(void)
-    {
-        // For every bucket in the hash table
-        for (int i = 0; i < N; i++)
-        {
-            // Use a recursive helper function to destroy_linked_node the corresponding linked list
-            // and free all nodes from end to start
-            destroy_linked_node(table[i]);
-            if (i == N - 1)
-            {
-                return true;
-            }
-        }
-        return false;
-
-    }
-
-    void add(node **head_ptr, node **new_ptr)
-    {
-        (*new_ptr)->next = *head_ptr;
-        *head_ptr = *new_ptr;
-    }
-
-    // destroys linked lists looking to add or free nodes
-    void destroy_linked_node(node *head_ptr)
-    {
-        node *ptr = head_ptr;
-        while (ptr != NULL)
-        {
-            node *next = ptr->next;
-            delete ptr;
-            ptr = next;
-        }
-    }
+    // Returns words loaded into dictionary
     unsigned int size(void)
     {
         return word_count;
@@ -152,7 +153,7 @@ class hash_table {
     unsigned int hash_function(const string word)
     {
         hash<string> myhash;
-        int hash_value = ((int) myhash(word)) % 150'000;
+        int hash_value = myhash(word) % N;
 
         return hash_value;
     }
@@ -161,7 +162,6 @@ class hash_table {
 
 int main(int argc, char* argv[])
 {
-    hash_table table;
     // Check for correct number of args
     if (argc != 2 && argc != 3)
     {
@@ -172,23 +172,17 @@ int main(int argc, char* argv[])
     // Determine dictionary to use if provided 
     const string dictionary = (argc == 3) ? argv[1] : DICTIONARY;
 
-    bool loaded = table.load_dict(dictionary);
-
-    // Exit if dictionary not loaded
-    if (!loaded)
-    {
-        std::cout<< "Could not load" << dictionary << "\n";
-        return 1;
-    }
+    Hash_Table table(dictionary);
 
     // Try to open text
     string text = (argc == 3) ? argv[2] : argv[1];
     ifstream file (text, std::ios::in);
     if (!file.is_open())
     {
-        std::cout << "Could not open" <<  text << "\n";
-        table.unload();
+        std::cout << "Could not open text" <<  text << "\n";
         return 1;
+    } else {
+        std:: cout << "Opened text correctly\n";
     }
 
     // Prepare to report misspellings
@@ -200,7 +194,7 @@ int main(int argc, char* argv[])
 
     // Spell-check each word in text
     char c;
-    while (file.good())
+    while (file.peek() != EOF)
     {
         file.get(c);
         // Allow only alphabetical characters and apostrophes
@@ -261,6 +255,7 @@ int main(int argc, char* argv[])
 
             // Prepare for next word
             index = 0;
+            word.clear();
         }
     }
 
@@ -269,34 +264,33 @@ int main(int argc, char* argv[])
     {
         file.close();
         std::cout << "Error reading " << text << "\n";
-        table.unload();
         return 1;
     }
 
+    //
+    // // Determine dictionary's size
+    // unsigned int n = table.size();
+    //
+    //
+    // // Unload dictionary
+    // bool unloaded = table.unload();
+    //
+    // // Abort if dictionary not unloaded
+    // if (!unloaded)
+    // {
+    //     std::cout << "Could not unload " << dictionary << "\n";
+    //     return 1;
+    // }
+    //
+    //
+    // // Report results
+    // std::cout << "\nWORDS MISSPELLED:     " << misspellings << "\n";
+    // std::cout << "WORDS IN DICTIONARY:  " << n << "\n";
+    // std::cout << "WORDS IN TEXT:        " << words << "\n";
+    //
     // Close text
     file.close();
-
-    // Determine dictionary's size
-    unsigned int n = table.size();
-
-
-    // Unload dictionary
-    bool unloaded = table.unload();
-
-    // Abort if dictionary not unloaded
-    if (!unloaded)
-    {
-        std::cout << "Could not unload " << dictionary << "\n";
-        return 1;
-    }
-
-
-    // Report results
-    std::cout << "\nWORDS MISSPELLED:     " << misspellings << "\n";
-    std::cout << "WORDS IN DICTIONARY:  " << n << "\n";
-    std::cout << "WORDS IN TEXT:        " << words << "\n";
-
-    // Success
+    // Return Success
     return 0;
 }
 
